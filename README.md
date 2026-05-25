@@ -1,6 +1,6 @@
 # Skin Lesion Classifier
 
-A deep learning pipeline for classifying skin lesions into 8 classes using EfficientNet-B2, served via FastAPI with Prometheus monitoring.
+A deep learning pipeline for classifying skin lesions into 8 classes using EfficientNet-B4, served via FastAPI with Prometheus monitoring.
 
 **Classes:** Melanoma, Nevus (mole), Basal Cell Carcinoma, Actinic Keratosis, Benign Keratosis, Dermatofibroma, Vascular Lesion, Squamous Cell Carcinoma
 
@@ -16,7 +16,7 @@ skin-lesion-classifier/
 │   └── utils.py            # Logger, save/load checkpoint
 │
 ├── model/
-│   └── classifier.py       # EfficientNet-B2 backbone, configurable num_classes
+│   └── classifier.py       # EfficientNet-B4 backbone (timm), custom classification head
 │
 ├── serving/
 │   ├── app.py              # FastAPI app — /health, /predict, /metrics
