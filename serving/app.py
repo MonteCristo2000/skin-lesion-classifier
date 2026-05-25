@@ -49,7 +49,8 @@ _model: torch.nn.Module | None = None
 async def lifespan(app: FastAPI):
     global _model
     _model = build_model(num_classes=len(CLASS_NAMES), pretrained=False)
-    state_dict = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+    checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+    state_dict = checkpoint["model_state_dict"] if "model_state_dict" in checkpoint else checkpoint
     _model.load_state_dict(state_dict)
     _model.eval()
     MODEL_LOADED.set(1)
