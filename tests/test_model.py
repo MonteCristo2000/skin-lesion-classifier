@@ -78,20 +78,20 @@ def test_head_first_layer_batchnorm():
 
 def test_head_first_linear_dims():
     m = SkinLesionClassifier(num_classes=8, pretrained=False)
-    layers = [l for l in m.head.children() if isinstance(l, nn.Linear)]
+    layers = [layer for layer in m.head.children() if isinstance(layer, nn.Linear)]
     assert layers[0].in_features == 1792
     assert layers[0].out_features == 512
 
 
 def test_head_last_linear_out_features():
     m = SkinLesionClassifier(num_classes=8, pretrained=False)
-    layers = [l for l in m.head.children() if isinstance(l, nn.Linear)]
+    layers = [layer for layer in m.head.children() if isinstance(layer, nn.Linear)]
     assert layers[-1].out_features == 8
 
 
 def test_head_last_linear_out_features_custom():
     m = SkinLesionClassifier(num_classes=5, pretrained=False)
-    layers = [l for l in m.head.children() if isinstance(l, nn.Linear)]
+    layers = [layer for layer in m.head.children() if isinstance(layer, nn.Linear)]
     assert layers[-1].out_features == 5
 
 
