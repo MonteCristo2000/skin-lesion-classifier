@@ -1,6 +1,8 @@
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 
+import yaml
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -9,6 +11,14 @@ from src.dataset import SkinLesionDataset
 from src.transforms import train_transforms, val_transforms
 from src.utils import save_checkpoint, get_logger
 from model.classifier import build_model
+
+
+def load_config(path: str) -> SimpleNamespace:
+    with open(path) as f:
+        raw = yaml.safe_load(f)
+    d = raw["data"] | raw["training"]
+    d["pretrained"] = raw["model"]["pretrained"]
+    return SimpleNamespace(**d)
 
 
 def train_one_epoch(model, loader, criterion, optimizer, device):
@@ -87,13 +97,21 @@ def main(cfg):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_csv",    required=True)
-    parser.add_argument("--val_csv",      required=True)
-    parser.add_argument("--data_root",    default="")
-    parser.add_argument("--output_dir",   default="outputs/")
-    parser.add_argument("--num_classes",  type=int, default=7)
-    parser.add_argument("--epochs",       type=int, default=30)
-    parser.add_argument("--batch_size",   type=int, default=32)
-    parser.add_argument("--lr",           type=float, default=1e-4)
-    parser.add_argument("--workers",      type=int, default=4)
-    main(parser.parse_args())
+    parser.add_argument("--config", default="configs/train.yaml", help="Path to YAML config")
+    # CLI overrides
+    parser.add_argument("--train_csv",   default=None)
+    parser.add_argument("--val_csv",     default=None)
+    parser.add_argument("--output_dir",  default=None)
+    parser.add_argument("--epochs",      type=int, default=None)
+    parser.add_argument("--batch_size",  type=int, default=None)
+    parser.add_argument("--lr",          type=float, default=None)
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    # Apply any CLI overrides
+    for key in ("train_csv", "val_csv", "output_dir", "epochs", "batch_size", "lr"):
+        val = getattr(args, key)
+        if val is not None:
+            setattr(cfg, key, val)
+
+    main(cfg)

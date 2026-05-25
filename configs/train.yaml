@@ -1,0 +1,21 @@
+data:
+  train_csv: data/train.csv
+  val_csv: data/val.csv
+  data_root: data/images
+  num_classes: 7
+
+model:
+  backbone: efficientnet_b2
+  pretrained: true
+
+training:
+  epochs: 30
+  batch_size: 32
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  workers: 4
+  output_dir: outputs/
+
+scheduler:
+  type: cosine
+  t_max: 30
