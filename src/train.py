@@ -6,6 +6,7 @@ import yaml
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from src.dataset import SkinLesionDataset
 from src.transforms import train_transforms, val_transforms
@@ -21,11 +22,12 @@ def load_config(path: str) -> SimpleNamespace:
     return SimpleNamespace(**d)
 
 
-def train_one_epoch(model, loader, criterion, optimizer, device):
+def train_one_epoch(model, loader, criterion, optimizer, device, epoch, total_epochs):
     model.train()
     total_loss, correct = 0.0, 0
 
-    for images, labels in loader:
+    pbar = tqdm(loader, desc=f"Epoch {epoch}/{total_epochs} [train]", leave=False)
+    for images, labels in pbar:
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(images)
@@ -35,21 +37,25 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
 
         total_loss += loss.item() * images.size(0)
         correct += (outputs.argmax(1) == labels).sum().item()
+        pbar.set_postfix(loss=f"{loss.item():.4f}")
 
     n = len(loader.dataset)
     return total_loss / n, correct / n
 
 
 @torch.no_grad()
-def evaluate(model, loader, criterion, device):
+def evaluate(model, loader, criterion, device, epoch, total_epochs):
     model.eval()
     total_loss, correct = 0.0, 0
 
-    for images, labels in loader:
+    pbar = tqdm(loader, desc=f"Epoch {epoch}/{total_epochs} [val]  ", leave=False)
+    for images, labels in pbar:
         images, labels = images.to(device), labels.to(device)
         outputs = model(images)
-        total_loss += criterion(outputs, labels).item() * images.size(0)
+        loss = criterion(outputs, labels)
+        total_loss += loss.item() * images.size(0)
         correct += (outputs.argmax(1) == labels).sum().item()
+        pbar.set_postfix(loss=f"{loss.item():.4f}")
 
     n = len(loader.dataset)
     return total_loss / n, correct / n
@@ -75,9 +81,11 @@ def main(cfg):
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for epoch in range(1, cfg.epochs + 1):
-        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_acc     = evaluate(model, val_loader, criterion, device)
+    epoch_pbar = tqdm(range(1, cfg.epochs + 1), desc="Training", unit="epoch")
+    for epoch in epoch_pbar:
+        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device, epoch, cfg.epochs)
+        val_loss, val_acc     = evaluate(model, val_loader, criterion, device, epoch, cfg.epochs)
+        epoch_pbar.set_postfix(train_acc=f"{train_acc:.4f}", val_acc=f"{val_acc:.4f}")
         scheduler.step()
 
         logger.info(
