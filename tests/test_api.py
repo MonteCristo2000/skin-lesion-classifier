@@ -1,40 +1,10 @@
-import io
-from unittest.mock import MagicMock, patch
-
-import pytest
-import torch
-from fastapi.testclient import TestClient
-from PIL import Image
-
-from serving.app import CLASS_NAMES, MODEL_VERSION, app
-
-
-def make_image_bytes(fmt: str = "JPEG") -> bytes:
-    img = Image.new("RGB", (384, 384), color=(120, 80, 60))
-    buf = io.BytesIO()
-    img.save(buf, format=fmt)
-    return buf.getvalue()
-
-
-@pytest.fixture(scope="module")
-def client():
-    mock_model = MagicMock()
-    # Return uniform logits so softmax gives equal probabilities
-    mock_model.return_value = torch.zeros(1, len(CLASS_NAMES))
-
-    with (
-        patch("serving.app.build_model", return_value=mock_model),
-        patch("serving.app.torch.load", return_value={}),
-    ):
-        with TestClient(app) as c:
-            yield c
+from serving.app import CLASS_NAMES, MODEL_VERSION
 
 
 # --- /health ---
 
-def test_health_status(client):
-    r = client.get("/health")
-    assert r.status_code == 200
+def test_health_returns_200(client):
+    assert client.get("/health").status_code == 200
 
 
 def test_health_schema(client):
@@ -44,65 +14,64 @@ def test_health_schema(client):
     assert body["model_version"] == MODEL_VERSION
 
 
-# --- /predict ---
+# --- /predict happy path ---
 
-def test_predict_jpeg(client):
-    r = client.post(
-        "/predict",
-        files={"file": ("lesion.jpg", make_image_bytes("JPEG"), "image/jpeg")},
-    )
+def test_predict_jpeg_returns_200(client, jpeg_bytes):
+    r = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")})
     assert r.status_code == 200
 
 
-def test_predict_png(client):
-    r = client.post(
-        "/predict",
-        files={"file": ("lesion.png", make_image_bytes("PNG"), "image/png")},
-    )
+def test_predict_png_returns_200(client, png_bytes):
+    r = client.post("/predict", files={"file": ("lesion.png", png_bytes, "image/png")})
     assert r.status_code == 200
 
 
-def test_predict_response_schema(client):
-    body = client.post(
-        "/predict",
-        files={"file": ("lesion.jpg", make_image_bytes("JPEG"), "image/jpeg")},
-    ).json()
+def test_predict_response_has_required_fields(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
     assert "predicted_class" in body
     assert "confidence" in body
     assert "probabilities" in body
     assert "model_version" in body
+
+
+def test_predict_model_version(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
     assert body["model_version"] == MODEL_VERSION
 
 
-def test_predict_all_classes_present(client):
-    body = client.post(
-        "/predict",
-        files={"file": ("lesion.jpg", make_image_bytes("JPEG"), "image/jpeg")},
-    ).json()
+def test_predict_all_classes_in_probabilities(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
     assert set(body["probabilities"].keys()) == set(CLASS_NAMES)
 
 
-def test_predict_probabilities_sum_to_one(client):
-    body = client.post(
-        "/predict",
-        files={"file": ("lesion.jpg", make_image_bytes("JPEG"), "image/jpeg")},
-    ).json()
-    total = sum(body["probabilities"].values())
-    assert abs(total - 1.0) < 1e-4
+def test_predict_probabilities_sum_to_one(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
+    assert abs(sum(body["probabilities"].values()) - 1.0) < 1e-4
 
 
-def test_predict_confidence_matches_predicted_class(client):
-    body = client.post(
-        "/predict",
-        files={"file": ("lesion.jpg", make_image_bytes("JPEG"), "image/jpeg")},
-    ).json()
+def test_predict_confidence_matches_predicted_class(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
     assert body["confidence"] == body["probabilities"][body["predicted_class"]]
 
 
-def test_predict_invalid_content_type(client):
-    r = client.post(
-        "/predict",
-        files={"file": ("report.pdf", b"not-an-image", "application/pdf")},
-    )
+def test_predict_confidence_in_range(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
+    assert 0.0 <= body["confidence"] <= 1.0
+
+
+def test_predict_predicted_class_is_valid(client, jpeg_bytes):
+    body = client.post("/predict", files={"file": ("lesion.jpg", jpeg_bytes, "image/jpeg")}).json()
+    assert body["predicted_class"] in CLASS_NAMES
+
+
+# --- /predict error cases ---
+
+def test_predict_pdf_returns_400(client):
+    r = client.post("/predict", files={"file": ("report.pdf", b"not-an-image", "application/pdf")})
     assert r.status_code == 400
-    assert "JPEG" in r.json()["detail"] or "PNG" in r.json()["detail"]
+
+
+def test_predict_pdf_error_message(client):
+    r = client.post("/predict", files={"file": ("report.pdf", b"not-an-image", "application/pdf")})
+    detail = r.json()["detail"]
+    assert "JPEG" in detail or "PNG" in detail

@@ -13,6 +13,7 @@ from PIL import Image
 from prometheus_client import make_asgi_app
 
 from model.classifier import build_model
+from monitoring.drift_detector import DriftDetector
 from monitoring.metrics import (
     CONFIDENCE_HISTOGRAM,
     INFERENCE_LATENCY,
@@ -20,6 +21,7 @@ from monitoring.metrics import (
     PREDICTION_COUNTER,
     REQUEST_COUNTER,
 )
+from monitoring.metrics_logger import MetricsLogger
 from serving.schemas import HealthResponse, PredictionResponse
 
 inference_transforms = A.Compose([
@@ -42,7 +44,18 @@ CLASS_NAMES = [
 MODEL_PATH = Path("model/best_model.pth")
 MODEL_VERSION = "1.0.0"
 
+_REF_CONFIDENCES_PATH = Path("model/reference_confidences.npy")
+
 _model: torch.nn.Module | None = None
+_metrics_logger = MetricsLogger()
+
+# Loaded with real validation-set confidences when the file exists; otherwise
+# drift detection is silently disabled (DriftDetector.is_active == False).
+_drift_detector = DriftDetector(
+    reference=np.load(_REF_CONFIDENCES_PATH).tolist()
+    if _REF_CONFIDENCES_PATH.exists()
+    else [],
+)
 
 
 @asynccontextmanager
@@ -87,15 +100,22 @@ async def predict(file: UploadFile):
     with torch.no_grad():
         logits = _model(tensor)
         probs = F.softmax(logits, dim=1).squeeze(0)
-    INFERENCE_LATENCY.observe(time.perf_counter() - t0)
+    latency = time.perf_counter() - t0
+    INFERENCE_LATENCY.observe(latency)
 
     predicted_idx = probs.argmax().item()
     confidence = round(probs[predicted_idx].item(), 6)
     probabilities = {name: round(probs[i].item(), 6) for i, name in enumerate(CLASS_NAMES)}
-
     PREDICTION_COUNTER.labels(predicted_class=CLASS_NAMES[predicted_idx]).inc()
     CONFIDENCE_HISTOGRAM.observe(confidence)
     REQUEST_COUNTER.labels(endpoint="/predict", status="200").inc()
+
+    _metrics_logger.record_prediction(
+        predicted_class=CLASS_NAMES[predicted_idx],
+        confidence=confidence,
+        latency_seconds=latency,
+    )
+    _drift_detector.update(confidence)
 
     return PredictionResponse(
         predicted_class=CLASS_NAMES[predicted_idx],
@@ -103,3 +123,11 @@ async def predict(file: UploadFile):
         probabilities=probabilities,
         model_version=MODEL_VERSION,
     )
+
+
+@app.get("/stats")
+def stats():
+    summary = _metrics_logger.get_summary()
+    summary["drift_events"] = _drift_detector.drift_count
+    summary["drift_detection_active"] = _drift_detector.is_active
+    return summary

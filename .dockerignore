@@ -1,10 +1,12 @@
 data/
 outputs/
+notebooks/
 model/*.pth
 tests/
 .git/
 .github/
 *.pyc
+*.ipynb
 __pycache__/
 .ipynb_checkpoints/
 .env

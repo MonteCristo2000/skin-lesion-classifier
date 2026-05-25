@@ -16,6 +16,7 @@ COPY --from=builder /install /usr/local
 
 COPY model/       model/
 COPY serving/     serving/
+COPY monitoring/  monitoring/
 COPY src/         src/
 COPY configs/     configs/
 
