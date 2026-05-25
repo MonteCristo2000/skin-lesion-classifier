@@ -3,8 +3,11 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import albumentations as A
+import numpy as np
 import torch
 import torch.nn.functional as F
+from albumentations.pytorch import ToTensorV2
 from fastapi import FastAPI, HTTPException, UploadFile
 from PIL import Image
 from prometheus_client import make_asgi_app
@@ -18,7 +21,12 @@ from monitoring.metrics import (
     REQUEST_COUNTER,
 )
 from serving.schemas import HealthResponse, PredictionResponse
-from src.transforms import val_transforms
+
+inference_transforms = A.Compose([
+    A.Resize(384, 384),
+    A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ToTensorV2(),
+])
 
 CLASS_NAMES = [
     "Melanoma",
@@ -71,8 +79,8 @@ async def predict(file: UploadFile):
         raise HTTPException(status_code=400, detail="Only JPEG and PNG images are supported.")
 
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
-    tensor = val_transforms(image).unsqueeze(0)
+    image = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
+    tensor = inference_transforms(image=image)["image"].unsqueeze(0)
 
     t0 = time.perf_counter()
     with torch.no_grad():
