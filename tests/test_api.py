@@ -10,7 +10,7 @@ from serving.app import CLASS_NAMES, MODEL_VERSION, app
 
 
 def make_image_bytes(fmt: str = "JPEG") -> bytes:
-    img = Image.new("RGB", (64, 64), color=(120, 80, 60))
+    img = Image.new("RGB", (384, 384), color=(120, 80, 60))
     buf = io.BytesIO()
     img.save(buf, format=fmt)
     return buf.getvalue()
