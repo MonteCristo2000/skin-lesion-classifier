@@ -113,6 +113,35 @@ Prometheus scrapes `/metrics` every 15 seconds. Available metrics:
 
 Prometheus UI available at `http://localhost:9090` when running via Docker Compose.
 
+## Example Prediction
+
+Tested against [ISIC_0000000](https://api.isic-archive.com/api/v2/images/?isic_id=ISIC_0000000) — a dermoscopic image clinically diagnosed as **Nevus (mole)**:
+
+```bash
+curl -X POST http://localhost:8080/predict \
+  -F "file=@ISIC_0000000.jpg"
+```
+
+```json
+{
+  "predicted_class": "Nevus (mole)",
+  "confidence": 0.715271,
+  "probabilities": {
+    "Melanoma": 0.204866,
+    "Nevus (mole)": 0.715271,
+    "Basal Cell Carcinoma": 0.030693,
+    "Actinic Keratosis": 0.009799,
+    "Benign Keratosis": 0.010218,
+    "Dermatofibroma": 0.012197,
+    "Vascular Lesion": 0.014393,
+    "Squamous Cell Carcinoma": 0.002562
+  },
+  "model_version": "1.0.0"
+}
+```
+
+Prediction matches ground truth label. ✓
+
 ## Tests
 
 ```bash
