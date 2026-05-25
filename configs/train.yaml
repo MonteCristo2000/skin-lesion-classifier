@@ -2,10 +2,10 @@ data:
   train_csv: data/train.csv
   val_csv: data/val.csv
   data_root: data/images
-  num_classes: 7
+  num_classes: 8
 
 model:
-  backbone: efficientnet_b2
+  backbone: efficientnet_b4
   pretrained: true
 
 training:
