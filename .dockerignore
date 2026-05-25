@@ -1,0 +1,10 @@
+data/
+outputs/
+model/*.pth
+tests/
+.git/
+.github/
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
+.env

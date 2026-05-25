@@ -1,0 +1,18 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: skin-lesion-classifier:latest
+    container_name: skin-lesion-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../model/best_model.pth:/app/model/best_model.pth:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
