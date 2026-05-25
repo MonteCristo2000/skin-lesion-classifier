@@ -16,3 +16,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: skin-lesion-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  prometheus_data:
